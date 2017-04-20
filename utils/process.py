@@ -124,7 +124,8 @@ class SignatureProcessor(object):
             line = line[1:].strip()
 
             # We have to log this argument.
-            log = False
+            #log = False
+            log=True
             if line.startswith('*'):
                 log = True
                 line = line[1:].strip()
@@ -371,6 +372,7 @@ class SignatureProcessor(object):
             ensure = {}
             for arg in row.get('parameters', []):
                 if arg['log'] and arg['argtype'] not in self.types:
+                    #print 'argtype ' + arg['argtype'] + " = p"
                     raise Exception('Unknown argtype %r in %s, please add it '
                                     'to data/types.conf.' % (arg['argtype'],
                                                              row['apiname']))
@@ -497,7 +499,7 @@ class SignatureProcessor(object):
 
         self.dp.render('hook-header', self.hooks_h, sigs=self.sigs)
         self.dp.render('hook-source', self.hooks_c,
-                       sigs=self.sigs, types=self.types, debug=debug)
+                       sigs=self.sigs, types=self.types, debug=debug, log_all=False) #vigliag adding and forcing log_all
         self.dp.render('hook-info-header', self.hook_info_h,
                        sigs=self.sigs, first_hook=len(self.base_sigs))
 

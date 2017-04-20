@@ -63,6 +63,32 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     );
 {%- endmacro %}
 
+//VIGLIAG
+#define HYPERCALL_FN_ENTER 1
+#define HYPERCALL_FN_EXIT 2
+
+void do_hypercall(int enter, uint64_t hash){
+  uint32_t v_eax = 0xFFAAFFCC;
+  uint32_t v_ebx = enter;
+  uint32_t v_ecx = (uint32_t) hash;
+  uint32_t v_edx = 0;
+
+  asm __volatile__
+      ("mov  %0, %%eax \t\n\
+        mov  %1, %%ebx \t\n\
+        mov  %2, %%ecx \t\n\
+        mov  %3, %%edx \t\n\
+        cpuid \t\n\
+       "
+      : /* no output registers */
+      : "g" (v_eax), "g" (v_ebx), "g" (v_ecx), "g" (v_edx) /* input operands */
+      : "eax", "ebx", "ecx", "edx" /* clobbered registers */
+      );
+  return;
+}
+
+static uint32_t call_counter = 0;
+
 {% macro call_old(hook, replace_args=True, lasterr=True) -%}
     set_last_error(&lasterror);
     {%- if hook.signature.return_value != 'void' %}
@@ -142,6 +168,7 @@ static {{ hook.signature.return_value }} ({{ hook.signature.calling_convention }
     {%- endfor %}
     {%- endif %}
 
+    {#  VIGLIAG hijacking "hash" normally used for diffing
     {%- if hook.interesting %}
 
     uint64_t hash = call_hash(
@@ -169,6 +196,11 @@ static {{ hook.signature.return_value }} ({{ hook.signature.calling_convention }
 
     uint64_t hash = 0;
     {%- endif %}
+    #}
+
+    //vigliag
+    uint32_t current_call_counter = call_counter++;
+    uint64_t hash = (get_current_thread_id() * 1000000) + current_call_counter;
 
     {%- if hook.prelog: %}
 
@@ -180,7 +212,10 @@ static {{ hook.signature.return_value }} ({{ hook.signature.calling_convention }
     {{ log_api(hook, ret='0') }}
     {% endif %}
 
+    
+    do_hypercall(HYPERCALL_FN_ENTER, hash); 
     {{ call_old(hook) }}
+    do_hypercall(HYPERCALL_FN_EXIT, hash);
 
     {%- if hook.middle: %}
     {% for line in hook.middle: %}
