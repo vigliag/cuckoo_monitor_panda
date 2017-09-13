@@ -224,8 +224,11 @@ Interesting::
 
 Middle::
 
-    wchar_t *filepath = get_unicode_buffer();
-    path_get_full_path_handle(FileHandle, filepath);
+    wchar_t *filepath = NULL;
+    if(is_std_handle(FileHandle) == 0) {
+        filepath = get_unicode_buffer();
+        path_get_full_path_handle(FileHandle, filepath);
+    }
 
 Logging::
 
@@ -234,7 +237,7 @@ Logging::
 
 Post::
 
-    if(NT_SUCCESS(ret) != FALSE) {
+    if(NT_SUCCESS(ret) != FALSE && filepath != NULL) {
         pipe("FILE_NEW:%Z", filepath);
     }
 
@@ -380,6 +383,27 @@ Pre::
         path_get_full_path_handle(FileHandle, filepath);
         pipe("FILE_DEL:%Z", filepath);
         free_unicode_buffer(filepath);
+    }
+    if(FileInformation != NULL && Length >= sizeof(FILE_RENAME_INFORMATION) &&
+            FileInformationClass == FileRenameInformation) {
+        FILE_RENAME_INFORMATION *rename_information =
+            (FILE_RENAME_INFORMATION *) FileInformation;
+        wchar_t *input = get_unicode_buffer(), *output = get_unicode_buffer();
+
+        path_get_full_path_handle(FileHandle, input);
+
+        OBJECT_ATTRIBUTES objattr; UNICODE_STRING unistr;
+        unistr.Length = rename_information->FileNameLength;
+        unistr.MaximumLength = rename_information->FileNameLength;
+        unistr.Buffer = rename_information->FileName;
+        InitializeObjectAttributes(
+            &objattr, &unistr, 0, rename_information->RootDirectory, NULL
+        );
+        path_get_full_path_objattr(&objattr, output);
+
+        pipe("FILE_MOVE:%Z::%Z", input, output);
+        free_unicode_buffer(input);
+        free_unicode_buffer(output);
     }
 
 Interesting::
